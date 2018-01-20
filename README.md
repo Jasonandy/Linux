@@ -15,6 +15,34 @@ Linux继承了Unix以网络为核心的设计思想，是一个性能稳定的�
 # Liunx
 > 一切皆文件
 
+### 学习结构图
+![](http://upload-images.jianshu.io/upload_images/7802425-3c985c431823fdc0.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
+###
+
+> Tech Tree
+- Docker
+- Hadoop
+- ElasticSearch
+- Nginx
+- Swagger
+- Jenkins
+- Discuz
+- Svn
+- Maven
+- Python
+- Solr
+- Vue
+- Hexo
+- Zookeeper
+- Node
+- Raspi
+
+> Todo
+- [X] Zabbix
+- [ ] Nagios
+- [ ] Saltstack
+
 ### FAQ
 - Linux RedHat
 
