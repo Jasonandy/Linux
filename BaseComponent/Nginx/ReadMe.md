@@ -8,8 +8,9 @@
 ## nginx 路由
 ![](http://upload-images.jianshu.io/upload_images/7802425-d0f786b3dcbf2ae6.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
+> Nginx 学习
 
-
+- https://github.com/skyao/leaning-nginx
 
 
 
