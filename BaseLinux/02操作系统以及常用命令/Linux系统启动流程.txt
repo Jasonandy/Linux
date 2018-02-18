@@ -1,0 +1,387 @@
+Linux系统启动流程
+
+POST (Power On Self Testing 加电自检) --> BIOS(Boot Sequence) --> MBR(bootloader,446byte) --> kernel -->initrd -->(ROOTFS) /sbin/init(/etc/inittab)
+
+内核设计风格:
+1.单内核 : Linux 属于单内核
+     核心:ko (kernel object) 动态加载，内核模块 (内核的位置:/boot/vmlinuz-版本号)
+     内核模块:/lib/modules/"内核版本号命令的目录"/
+2.微内核 : Windows ,Solaris
+
+RedHat5 : randisk --> initrd
+RedHat6 : ramfs --> initramfs
+
+ldd : 显示二进制文件所依赖的共享库
+用法: ldd [OPTION] /PATH/TO/BINARY_FILE
+     例如: ldd /bin/bash
+     
+chroot : 切换根目录
+   chroot /PATH/TO/TEMPROOT [COMMAND]
+
+
+-------------------------------------
+启动的服务不动，运行级别不同
+   运行级别: 0 - 6
+   0 : halt 关机
+   1 : single user mode,直接以管理员身份切入, 在编辑模式的时候可以用1,s,S,single 来指定此模式
+   2 : multi user mode ,no NFS ,多用户模式,但是不启用NFS
+   3 : multi user mode,text mode,正常情况下的多用户模式，是命令行的模式
+   4 : reserved 保留模式
+   5 : multi user mode,graphic mode,正常情况下的多用户模式，是图形界面的模式
+   6 : reboot 重启
+在/etc/inittab下可以设置默认启动的级别
+-------------------------------------
+
+详解启动过程:
+   bootloader(MBR)
+      LILO : LInux LOader
+      GRUB : GRand Unified Bootloader
+         Stage1 : MBR (这个阶段是为了引导第二阶段)
+         Stage1_5 : 帮助识别文件系统
+         Stage2 : /boot/grub
+         
+groub.conf里面的详解:
+
+******************************************************************************
+default=0 # 设定默认启动的title编号
+timeout=5 # 等待用户选择的超时时长，单位是秒
+splashimage=(hd0,0)/boot/grub/splash.xpm.gz # grub的背景图片
+hiddenmenu # 隐藏菜单
+
+password [在此输入密码]
+password --md5 [在此输入md5的密码（使用 grub-md5-crypt 去生成）]
+
+title CentOS (2.6.32-431.23.3.el6.x86_64) # 内核标题，或者操作系统名称，字符串，可以自由修改
+        root (hd0,0) # 内核文件所在的设备;对grub而言，所有类型硬盘一律hd，格式为(hd#,N): #表示第几个磁盘;最后的N表示对应磁盘的分区
+        kernel /boot/vmlinuz-2.6.32-431.23.3.el6.x86_64 ro root=UUID=94e4e384-0ace-437f-bc96-057dd64f42ee rd_NO_LUKS rd_NO_LVM LANG=en_US.UTF-8 rd_NO_MD SYSFONT=latarcyrheb-sun16 crashkernel=auto  KEYBOARDTYPE=pc KEYTABLE=us rd_NO_DM rhgb quiet # 内核文件路径以及传递给内核的参数
+        initrd /boot/initramfs-2.6.32-431.23.3.el6.x86_64.img #rawdisk文件路径
+        password --md5 [在此输入md5的密码（使用 grub-md5-crypt 去生成）] 如果密码放在这表示启动内核的时候必须要输入密码
+******************************************************************************
+
+在命令行中直接输入 grub-md5-crypt 可以生成用于grub的md5加密的密码
+        
+-------------------------------------
+
+查看运行级别:
+   runlevel
+   who -r
+
+查看内核release号
+   uname -r
+   
+-------------------------------------
+安装grub stage1
+# grub
+grub> root (hd0,0)
+grub> setup (hd0)
+
+安装grub的第二种方式
+# grub-install --root-directory=/path/to/boot's_parent_dir /PATH/TO/DEVICE
+
+grub> find
+grub> root (hd#,N)
+grub> kernel /PATH/TO/KERNEL_FILE
+grub> initrd /PATH/TO/INITRD_FILE
+grub> boot
+
+-------------------------------------
+Kernel的初始过程
+1、设备探测
+2、驱动初始化(可能会从initrd（initramfs）文件中装载驱动模块)
+3、以只读方式挂载根文件系统
+4、转载第一个进程init(PID:1)
+
+/sbin/init : (读取/etc/inittab 配置文件)
+   upstart : ubuntu 开发 使用d-bus 来配置的,基于event来实现驱动的
+   systemd : 
+
+在/etc/inittab文件中，每一行定义需要执行的进程
+   id:runlevels:action:process
+
+   id: 标识符
+   runlevels:运行级别
+   action:执行动作（在什么情况下执行）
+      initdefault:设定默认运行级别
+      sysinit: 系统初始化
+      wait:等待级别切换至此级别时执行
+      ctrlaltdel:同时按下ctrl+alt+del键的时候
+      powerfail:系统断电的时候
+      powerokwait:电又来了的时候
+      respawn:一旦指定的程序终止会重新启动
+   process:要运行的程序
+   例如: si::sysinit:/etc/rc.d/rc.sysinit : 表示这个进程在所有运行级别下在系统初始化的时候执行/etc/rc.d/rc.sysinit这个程序
+        这个脚本完成OS的初始化
+   
+/etc/inittab这个文件的任务:
+1、设定默认运行级别
+2、运行系统初始化脚本
+3、运行指定运行级别对应的目录下的脚本
+4、设定ctrl+alt+del组合键的操作
+5、定义UPS电源在电源故障/恢复时执行的操作
+6、启动虚拟终端（2、3、4、5级别）
+7、启动图形终端（只在5级别）
+
+
+/etc/rc.d/rc.sysinit完成的任务:
+1、激活udev和selinux
+2、根据/etc/sysctl.conf文件，来设定内核参数
+3、设定系统时钟
+4、装载键盘映射
+5、启用交换分区
+6、设置主机名
+7、根据文件系统检测，并且以读写方式重新挂载
+8、激活RAID和LVM设备
+9、启动磁盘配额
+10、根据/etc/fstab，检查并且挂载其他文件系统
+11、清理过期的锁和PID文件
+
+-------------------------------------
+/etc/rc.d/init.d <==> /etc/init.d : 后面是前面的链接,表示同一个
+这里面都是服务类脚本
+
+服务类脚本:
+   SysV风格: /etc/rc.d/init.d 里面的脚本，一般要接收参数:
+            start | stop | restart | status | reload | configtest
+            
+在/etc/rc.d/init.d里面的脚本都有下面两行:
+# chkconfig: [runlevels] [SS] [KK]
+      这行的意思:当chkconfig命令来为此脚本在rc#.d目录创建链接时,runlevels表示默认创建为S*开头的链接,除此之外的级别默认创建为K*开头的链接:
+      S后面的启动优先级为SS所表示的数字,K后面关闭优先级次序为KK所表示的数字（如果runlevels为-表示没有级别默认为S*开头的链接）
+# description: 用于说明此脚本的简单功能: \ 表示续行
+
+chkconfig命令:
+   --list : 查看所有独立守护服务的启动设定，独立守护进程,例如: chkconfig --list
+   --add SERVER_NAME : 生成上面所属的对应的链接文件
+   --del SERVER_NAME : 移除该服务相关的链接
+   --level RUN_LEVELS SERVER_NAME (on|off) 修改指定级别的启动还是关闭
+   
+
+/etc/rc.d/rc.local : 系统最后启动的一个服务,准确说,应该执行的一个脚本
+
+-------------------------------------
+守护进程的类型：
+   独立守护进程
+   xinetd : 超级守护进程，代理人
+      瞬时守护进程，不需要关联至运行级别
+
+
+-------------------------------------
+核心:/boot/vmlinuz-version
+内核模块:(ko) /lib/modules/version
+
+内核设计:
+   单内核:
+      模块化设计
+   微内核:
+
+装载模块:
+   insmod
+   modprobe
+
+用户空间访问、监控内核的方式:
+/proc,/sys : 都是伪文件系统
+
+/proc/sys : 此目录中的很多文件是可读写的
+/sys/ : 某些文件可写
+
+设定内核参数值的方法:
+(1) echo VALUE > /proc/sys/SOMEFILE : 例如使用: echo "www.zhoujiafei.com" > /proc/sys/kernel/hostname 来修改主机名
+(2) sysctl -w variable=value : (这里的variable是/proc/sys/目录下的路径子目录之间用.来替代)，例如上面的例子就可以这样操作:sysctl -w kernel.hostname="www.zhoujiafei.com"
+
+注意：通过以上的两种方式能够立即生效，但是不能永久有效
+
+如果想永久有效，通过编辑:/etc/sysctl.conf，但是不会立即生效
+sysctl -p : 在编辑完/etc/sysctl.conf之后，可以使用此命令立即生效
+sysctl -a : 显示所有内核参数及其值
+
+
+内核模块管理:
+lsmod : 查看已经装载的内核模块
+modprobe MOD_NAME : 装载某个模块
+modprobe -r MOD_NAME : 卸载某个模块
+modinfo MOD_NAME : 查看模块的具体信息
+insmod /PATH/TO/MODULE_FILE : 装载模块
+rmmod MOD_NAME : 卸载某个模块
+depmod /PATH/TO/MODULES_DIR : 生成模块依赖关系表，生成的文件保存在后面指定的目录中
+
+注意:在Linux中内核模块必与内核版本相一致
+
+内核中的功能，除了核心功能之外，在编译时，大多功能都有三种选择:
+1、不适用此功能
+2、编译成内核模块
+3、编译进内核
+
+如何手动编译内核:
+make gconfig: Gnome桌面环境使用，需要安装图形开发库组:GNOME Software Development
+make kconfig: KDE桌面环境使用，需要安装图形开发库
+
+make menuconfig : 启动图形界面编辑内核配置
+然后
+make
+make modules install
+make install
+
+使用远程连接编译的时候，通常使用screen，即使断掉也没有关系
+screen命令:
+screen -ls : 显示已经建立的屏幕
+screen : 直接打开一个新的屏幕
+screen -r ID : 还原回某屏幕
+CTRL+a，松开之后按d键可以拆除屏幕
+exit:退出某个screen
+
+二次编译时清理，如果有需要，请备份配置文件.config:
+make clean
+make mrproper
+
+-------------------------------------
+/etc/issue: 这个文件里面的信息，就是一登陆显示的信息
+PAM: Pluggable Authentication Module
+   /etc/pam.d/* : 插入式认证模块
+   
+nsswitch: Network Service Switch ==> 网络服务转换
+框架：
+   库:libnss_files.so,libnss_nis.so,libnss_ldap.so
+   配置文件:/etc/nsswitch.conf
+   
+
+-------------------------------------
+内核编译:
+busybox:二进制
+
+查看本机硬件信息:
+1、cat /proc/cpuinfo : 查看CPU信息
+2、lsusb : 列出本机USB接口
+3、lspci : 查看总线设备
+4、hdl-device : 硬件抽象层
+
+编译内核:
+1、配置
+make menuconfig
+make gconfig
+make kconfig
+make oldconfig
+make config
+
+保存为.config文件
+
+2、
+make 
+make modules_install
+make install
+
+模块安装位置:/lib/modules/KERNEL_VERSION
+
+如何实现部分编译:
+(1)只编译某子目录下的相关代码
+   make dir/
+   make arch/
+   make drivers/net
+   ...
+(2)只编译部分模块
+   make M=drivers/net
+   ...
+(3)只编译某一个模块
+   make drivers/net/pcnet32.ko
+   ...
+(4)将编译完成的结果放置在别的目录中
+   make O=/tmp/kernel
+   
+(5)交叉编译
+   make ARCH=
+   
+如何编译busybox?
+-------------------------------------
+一般情况下：
+/etc/rc.d/init.d/下有很多的服务脚本
+通常情况下,服务脚本支持的配置文件: /etc/sysconfig/服务脚本同名的配置文件
+
+-------------------------------------
+任务计划:
+(1)在未来的某个时间点只执行一次某任务
+   at:
+      用法: at 时间
+           at>  COMMAND :需要执行的命令
+           at> CTRL+d 表示提交
+      时间的格式：
+           1. 绝对时间: HH::MM DD.MM.YY MM/DD/YY
+           2. 相对时间: now+#
+                  单位: minutes hours days weeks
+           3. 模糊时间: noon ==> 上午12点
+                      midnight ==> 晚上12点
+                      teatime ==> 喝茶时间(下午4点)
+      命令执行的结果将以邮件的形式发送给安排任务的用户
+      
+      -l : 显示作业列表 <==> atq
+      -d AT_JOB_ID : 取消作业 <==> atrm AT_JOB_ID
+
+   batch: 自动选择较为空闲的时间执行命令，所以它不用指定时间，其他跟at用法类似
+(2)周期性地执行某任务
+   cron : 自身是一个不间断的服务
+   anacron : 这是cron的补充，能够实现让cron因为各种原因在过去的时间该执行而未执行的任务再再恢复正常执行一次
+   
+   cron分为:
+      系统cron任务 : 
+            位置:都定义在/etc/crontab文件里
+            格式:分钟 小时 天 月 周 用户 任务
+      用户cron任务 : 
+            位置:定义在/var/spool/cron/USERNAME下
+            格式:分钟 小时 天 月 周 任务
+      时间的有效取值范围:
+            分钟: 0 - 59
+            小时: 0 - 23
+            天: 1 - 31
+            月: 1 - 12
+            周: 0 - 7 : 0 和 7 表示周日
+      时间统配表示:
+            * : 表示所有有效取值 : 例如 3 * * * * 表示每个小时的第三分钟
+                                    3 * * * 7 表示每个星期天的每小时的第三分钟
+                                    13 12 * * * 表示每天的12点13分钟
+            , : 离散时间点: 例如 10,40 * * * * 表示每个小时的滴10分钟或者40分钟执行一次
+            
+            - : 连续时间点: 例如 10 02 * * 1-5 : 表示每周周一到周五的2点10分
+            / : 表示对应取值范围内每多久执行一次 : 例如 */3 * * * * 表示每三分钟一次的任务  
+                                                10 02 */2 * * 表示每两天执行一次，前面的两位要制定一个时间点
+      执行结果将会以邮件的形式发送给管理员
+            通常我们可以这样处理，将执行命令之后的信息重定向到某个文件中，从而避免不需要的信息也接收到邮件，例如
+               */3 * * * * /bin/cat /etc/fstab > /dev/null : 每三分钟执行一次cat /etc/fstab 命令，并且当执行错误的时候才会发邮件，正常情况下不会接收到邮件
+      
+      注意事项:
+         cron的环境变量:cron执行的所有命令都会到PATH环境变量指定的路径中去寻找
+            所以cron的PATH只包含: /bin:/sbin:/usr/bin:/usr/sbin
+            所以我们在执行脚本的时候，通常直接写命令的绝对路径，例如上面的/bin/cat
+            如果是脚本的话，通常在脚本里面export PATH 使用脚本自身的PATH变量
+         
+      用户任务的管理:
+         crontab: 
+            -l : 列出当前用户的所有cron任务
+            -e : 编辑任务
+            -r : 移除所有任务
+            -u USERNAME : 管理其他用户的cron任务
+         anacrontab :
+      
+   
+
+
+
+
+
+
+
+ 
+
+
+      
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+
+
