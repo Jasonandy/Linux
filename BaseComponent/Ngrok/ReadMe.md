@@ -20,6 +20,14 @@
 
 记录一下笔记
 
+## Raspiberry Ngrok 客户端
+![](http://upload-images.jianshu.io/upload_images/7802425-9be22b77f745c82c.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
+![](http://upload-images.jianshu.io/upload_images/7802425-75fd5b9a45a74f8a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
+## Vps 服务端
+![](http://upload-images.jianshu.io/upload_images/7802425-08dc1328d4f45750.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
 
 ## Ngrok
 ![](http://upload-images.jianshu.io/upload_images/7802425-d0f786b3dcbf2ae6.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
